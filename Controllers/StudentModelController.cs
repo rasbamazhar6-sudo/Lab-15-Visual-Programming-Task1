@@ -1,132 +1,74 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using Newtonsoft.Json;
-using Student_CRUD_Web_App.Models;
-using System.Text;
+using Microsoft.EntityFrameworkCore;
+using Students_CRUD_WebAPI.Data;
+using Students_CRUD_WebAPI.Models;
 
-namespace Student_CRUD_Web_App.Controllers
+namespace Students_CRUD_WebAPI.Controllers
 {
-    public class StudentModelsController : Controller
+    [Route("api/[controller]")]
+    [ApiController]
+    public class StudentModelController : ControllerBase
     {
-        private readonly HttpClient _httpClient;
-        private readonly string _apiUrl;
+        private readonly ApiDbContext _context;
 
-        public StudentModelsController(
-            IHttpClientFactory factory,
-            IConfiguration configuration)
+        public StudentModelController(ApiDbContext context)
         {
-            _httpClient = factory.CreateClient();
-            _apiUrl = configuration["ApiSettings:BaseUrl"];
+            _context = context;
         }
 
-        public async Task<IActionResult> Index()
+        // ✅ GET ALL STUDENTS
+        [HttpGet]
+        public async Task<ActionResult<IEnumerable<StudentModel>>> GetStudents()
         {
-            var response = await _httpClient.GetAsync(_apiUrl);
-
-            if (!response.IsSuccessStatusCode)
-                return View(new List<StudentModel>());
-
-            var json = await response.Content.ReadAsStringAsync();
-            var students = JsonConvert.DeserializeObject<List<StudentModel>>(json);
-
-            return View(students);
+            return await _context.StudentModel.ToListAsync();
         }
 
-
-        public async Task<IActionResult> Details(int id)
+        // GET BY ID
+        [HttpGet("{id}")]
+        public async Task<ActionResult<StudentModel>> GetStudent(int id)
         {
-            var response = await _httpClient.GetAsync($"{_apiUrl}/{id}");
-
-            if (!response.IsSuccessStatusCode)
+            var student = await _context.StudentModel.FindAsync(id);
+            if (student == null)
                 return NotFound();
 
-            var student = JsonConvert.DeserializeObject<StudentModel>(
-                await response.Content.ReadAsStringAsync());
-
-            return View(student);
+            return student;
         }
 
-        public IActionResult Create()
-        {
-            return View();
-        }
-
+        // CREATE
         [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create(StudentModel student)
+        public async Task<ActionResult<StudentModel>> Create(StudentModel student)
         {
-            if (!ModelState.IsValid)
-                return View(student);
+            _context.StudentModel.Add(student);
+            await _context.SaveChangesAsync();
 
-            var content = new StringContent(
-                JsonConvert.SerializeObject(student),
-                Encoding.UTF8,
-                "application/json");
-
-            var response = await _httpClient.PostAsync(_apiUrl, content);
-
-            if (response.IsSuccessStatusCode)
-                return RedirectToAction(nameof(Index));
-
-            ModelState.AddModelError("", "Failed to create student.");
-            return View(student);
+            return CreatedAtAction(nameof(GetStudent), new { id = student.ID }, student);
         }
 
-        public async Task<IActionResult> Edit(int id)
-        {
-            var response = await _httpClient.GetAsync($"{_apiUrl}/{id}");
-
-            if (!response.IsSuccessStatusCode)
-                return NotFound();
-
-            var student = JsonConvert.DeserializeObject<StudentModel>(
-                await response.Content.ReadAsStringAsync());
-
-            return View(student);
-        }
-
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Edit(int id, StudentModel student)
+        // UPDATE
+        [HttpPut("{id}")]
+        public async Task<IActionResult> Update(int id, StudentModel student)
         {
             if (id != student.ID)
                 return BadRequest();
 
-            var content = new StringContent(
-                JsonConvert.SerializeObject(student),
-                Encoding.UTF8,
-                "application/json");
+            _context.Entry(student).State = EntityState.Modified;
+            await _context.SaveChangesAsync();
 
-            var response = await _httpClient.PutAsync($"{_apiUrl}/{id}", content);
-
-            if (response.IsSuccessStatusCode)
-                return RedirectToAction(nameof(Index));
-
-            ModelState.AddModelError("", "Failed to update student.");
-            return View(student);
+            return NoContent();
         }
+
+        // DELETE
+        [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(int id)
         {
-            var response = await _httpClient.GetAsync($"{_apiUrl}/{id}");
-
-            if (!response.IsSuccessStatusCode)
+            var student = await _context.StudentModel.FindAsync(id);
+            if (student == null)
                 return NotFound();
 
-            var student = JsonConvert.DeserializeObject<StudentModel>(
-                await response.Content.ReadAsStringAsync());
+            _context.StudentModel.Remove(student);
+            await _context.SaveChangesAsync();
 
-            return View(student);
-        }
-
-        [HttpPost, ActionName("Delete")]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> DeleteConfirmed(int id)
-        {
-            var response = await _httpClient.DeleteAsync($"{_apiUrl}/{id}");
-
-            if (response.IsSuccessStatusCode)
-                return RedirectToAction(nameof(Index));
-
-            return BadRequest();
+            return NoContent();
         }
     }
 }
